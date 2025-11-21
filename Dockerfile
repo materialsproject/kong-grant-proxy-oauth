@@ -1,4 +1,4 @@
-FROM kong:2.8.4-alpine
+FROM kong:2.8.3-alpine
 
 USER root
 ARG VERSION
@@ -9,7 +9,7 @@ ENV LUA_PATH=/usr/local/share/lua/5.1/?.lua;; \
   DD_PROFILING_ENABLED=true \
   DD_LOGS_INJECTION=true
 
-RUN apk add git lua5.4 lua5.4-dev make
+RUN apk add git lua5.4 lua5.4-dev make openssl openssl-dev build-base
 RUN git clone --depth 1 https://github.com/luarocks/luarocks
 RUN cd luarocks && ./configure --prefix=/usr/local/openresty/luajit --lua-version=5.4 && make && make install
 RUN luarocks config lua_version 5.1
@@ -27,6 +27,10 @@ COPY schema.lua .
 COPY kong-grant-proxy-oauth-0.0-0.rockspec .
 #RUN luarocks install penlight
 RUN /usr/local/openresty/luajit/bin/luarocks install --tree /usr/local lua-resty-cookie
+RUN /usr/local/openresty/luajit/bin/luarocks install --tree /usr/local luaossl \
+    CRYPTO_DIR=/usr \
+    LUA_INCDIR=/usr/local/openresty/luajit/include/luajit-2.1
+
 RUN /usr/local/openresty/luajit/bin/luarocks --tree /usr/local/ make
 
 COPY start.sh .
