@@ -28,8 +28,8 @@ COPY kong-grant-proxy-oauth-0.0-0.rockspec .
 #RUN luarocks install penlight
 RUN /usr/local/openresty/luajit/bin/luarocks install --tree /usr/local lua-resty-cookie
 RUN /usr/local/openresty/luajit/bin/luarocks install --tree /usr/local luaossl \
-    CRYPTO_DIR=/usr \
-    LUA_INCDIR=/usr/local/openresty/luajit/include/luajit-2.1
+  CRYPTO_DIR=/usr \
+  LUA_INCDIR=/usr/local/openresty/luajit/include/luajit-2.1
 
 RUN /usr/local/openresty/luajit/bin/luarocks --tree /usr/local/ make
 
