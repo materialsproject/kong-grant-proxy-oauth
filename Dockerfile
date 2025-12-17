@@ -23,7 +23,8 @@ ENV LUA_PATH=/usr/local/share/lua/5.1/?.lua;; \
   KONG_NGINX_PROXY_PROXY_HTTP_VERSION=1.1 \
   KONG_MEM_CACHE_SIZE=1000m \
   KONG_ANONYMOUS_REPORTS=off \
-  KONG_NGINX_HTTP_LUA_SHARED_DICT="prometheus_metrics 30m"
+  KONG_NGINX_HTTP_LUA_SHARED_DICT="prometheus_metrics 30m" \
+  COOKIE_DOMAIN=".materialsproject.org"
 
 RUN apk add git lua5.4 lua5.4-dev make openssl openssl-dev build-base
 RUN git clone --depth 1 https://github.com/luarocks/luarocks
