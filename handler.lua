@@ -69,12 +69,11 @@ function CustomHandler:access(config)
 
 	-- retrieve session data
 	local data, err = session.storage:open(session_id)
-	if err then
-		kong.log.notice("anonymous - failed to retrieve grant session data: " .. tostring(err))
+	if err or not data then
+		local msg = "anonymous - failed to retrieve grant session data: "
+		local rsn = tostring(err) and err or "empty"
+		kong.log.notice(msg .. rsn)
 		return do_authentication(session, nil, config.anonymous)
-	elseif not data then
-		destroy_grant_session(session, session_id)
-		return kong.response.exit(500, "no data in grant session")
 	end
 
 	-- serialize session data
