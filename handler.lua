@@ -8,6 +8,7 @@ local jwt_decoder = require("kong.plugins.jwt.jwt_parser")
 local resty_cookie = require("resty.cookie")
 -- local pl_pretty = require "pl.pretty"
 -- local openssl = require('openssl')
+local cjson = require("cjson")
 
 local ngx = ngx
 local kong = kong
@@ -83,6 +84,22 @@ function CustomHandler:access(config)
 		return do_authentication(session, nil, config.anonymous)
 	end
 
+	-- ensure grant data exists before accessing it
+	if not data or not data.grant then
+		kong.log.notice("anonymous - no grant data found in session")
+		return do_authentication(session, nil, config.anonymous)
+	end
+
+	-- DEBUG: Log the full response structure
+	kong.log.err("DEBUG - Grant Response: ", cjson.encode(data.grant.response))
+	if data.grant.response and data.grant.response.id_token then
+		-- Wrap in pcall to prevent decoder crashes on bad tokens
+		local ok, jwt_debug = pcall(jwt_decoder.new, jwt_decoder, data.grant.response.id_token)
+		if ok and jwt_debug then
+			kong.log.err("DEBUG - ID Token Claims: ", cjson.encode(jwt_debug.claims))
+		end
+	end
+
 	-- check if oauth cycle completed
 	local response = data.grant.response
 	if type(response) ~= "table" then
@@ -100,10 +117,11 @@ function CustomHandler:access(config)
 	-- extract email from provider response
 	local email = nil
 	local provider = data.grant.provider
+	-- Try to get email from Profile
 	if response.profile then
-		-- providers with profile_url and profile in response
 		email = response.profile.email
-		if type(email) ~= "string" then
+		-- Handle array-style profiles (e.g. Google)
+		if type(email) ~= "string" and type(response.profile) == "table" then
 			for _, prof in ipairs(response.profile) do
 				if prof.primary then
 					email = prof.email
@@ -111,22 +129,18 @@ function CustomHandler:access(config)
 				end
 			end
 		end
-	else
-		-- providers with id_token only (eg Portier)
+	end
+
+	-- If Profile failed, try ID Token
+	if type(email) ~= "string" and response.id_token then
 		local jwt, err = jwt_decoder:new(response.id_token)
-		if err then
-			local msg = "Bad token; " .. tostring(err)
-			kong.log.err(msg)
-			destroy_grant_session(session, session_id)
-			return kong.response.exit(401, msg)
-		end
-		if jwt.claims.email_verified then
+		if not err and jwt and jwt.claims then
+			-- Use email if present; relax strict verification if Globus omits it
 			email = jwt.claims.email
-		else
-			local msg = provider .. " email not verified"
-			kong.log.err(msg)
-			destroy_grant_session(session, session_id)
-			return kong.response.exit(401, msg)
+			-- Optional: Log warning if verification is missing but we are proceeding
+			if not jwt.claims.email_verified then
+				kong.log.notice("Globus ID token used without explicit email_verified claim")
+			end
 		end
 	end
 
