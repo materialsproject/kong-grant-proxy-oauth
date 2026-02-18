@@ -117,10 +117,14 @@ function CustomHandler:access(config)
 	-- extract email from provider response
 	local email = nil
 	local provider = data.grant.provider
+
 	-- Try to get email from Profile
 	if response.profile then
-		email = response.profile.email
-		-- Handle array-style profiles (e.g. Google)
+		-- Standard object style (e.g., most OIDC providers)
+		if type(response.profile.email) == "string" then
+			email = response.profile.email
+		end
+		-- Handle array-style profiles (e.g. Google) if direct access failed
 		if type(email) ~= "string" and type(response.profile) == "table" then
 			for _, prof in ipairs(response.profile) do
 				if prof.primary then
@@ -132,15 +136,17 @@ function CustomHandler:access(config)
 	end
 
 	-- If Profile failed, try ID Token
-	if type(email) ~= "string" and response.id_token then
+	if (type(email) ~= "string" or email == "") and response.id_token then
 		local jwt, err = jwt_decoder:new(response.id_token)
 		if not err and jwt and jwt.claims then
-			-- Use email if present; relax strict verification if Globus omits it
-			email = jwt.claims.email
-			-- Optional: Log warning if verification is missing but we are proceeding
-			if not jwt.claims.email_verified then
-				kong.log.notice("Globus ID token used without explicit email_verified claim")
+			if jwt.claims.email then
+				email = jwt.claims.email
+				kong.log.notice("Extracted email from ID Token: " .. tostring(email))
+			else
+				kong.log.err("ID Token found but contains no 'email' claim")
 			end
+		else
+			kong.log.err("Failed to decode ID token: " .. tostring(err))
 		end
 	end
 
