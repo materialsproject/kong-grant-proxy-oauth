@@ -117,6 +117,12 @@ function CustomHandler:access(config)
 	-- extract email from provider response
 	local email = nil
 	local provider = data.grant.provider
+	if not provider then
+		local msg = "Session missing 'provider' field."
+		kong.log.err(msg)
+		destroy_grant_session(session, session_id)
+		return kong.response.exit(500, msg)
+	end
 
 	-- Try to get email from Profile
 	if response.profile then
@@ -161,6 +167,7 @@ function CustomHandler:access(config)
 	-- authenticate user with username <provider>:<email>
 	-- different accounts for different providers to avoid potential hijacking
 	local username = provider .. ":" .. email
+	kong.log.notice("Attempting authentication for: " .. username)
 	do_authentication(session, username, config.anonymous)
 
 	-- destroy grant session
